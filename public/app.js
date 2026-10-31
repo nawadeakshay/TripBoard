@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
+  setPersistence, browserLocalPersistence, browserSessionPersistence, sendPasswordResetEmail,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc,
@@ -43,31 +44,108 @@ document.querySelectorAll("[data-view]").forEach((b) =>
 // ---------- Auth ----------
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
+  document.body.classList.toggle("signed-out", !user);
   $("nav").hidden = !user;
   $("user-email").textContent = user ? user.email || "" : "";
   showView(user ? "search" : "auth");
 });
 
+// Friendlier text for the Firebase Auth errors users are likely to hit.
+const AUTH_ERRORS = {
+  "auth/invalid-credential": "Incorrect email or password.",
+  "auth/invalid-email": "Please enter a valid email address.",
+  "auth/missing-password": "Please enter your password.",
+  "auth/weak-password": "Password must be at least 6 characters.",
+  "auth/email-already-in-use": "An account with this email already exists. Try signing in.",
+  "auth/too-many-requests": "Too many attempts. Please wait a moment and try again.",
+  "auth/popup-closed-by-user": "Google sign-in was cancelled.",
+  "auth/popup-blocked": "The Google sign-in popup was blocked. Allow popups for this site and try again.",
+  "auth/network-request-failed": "Network error. Check your connection and try again.",
+};
+function showAuthMessage(text, ok = false) {
+  $("auth-error").textContent = text;
+  $("auth-error").classList.toggle("ok", ok);
+}
+const authErrorText = (err) => AUTH_ERRORS[err.code] || err.message;
+
+// "Remember me": keep the session after the browser closes (local) or only for this tab (session).
+// Applied when the box changes (not inside the Google click), so the popup still opens immediately
+// on click and isn't caught by popup blockers. Checked matches Firebase's default (local).
+const applyPersistence = () =>
+  setPersistence(auth, $("remember").checked ? browserLocalPersistence : browserSessionPersistence);
+$("remember").addEventListener("change", () => applyPersistence().catch((e) => showAuthMessage(e.message)));
+
+// Sign in / Create account tabs share one form; the mode decides which Firebase call runs.
+let authMode = "sign-in";
+function setAuthMode(mode) {
+  authMode = mode;
+  const signUp = mode === "sign-up";
+  $("tab-sign-in").setAttribute("aria-selected", String(!signUp));
+  $("tab-sign-up").setAttribute("aria-selected", String(signUp));
+  $("auth-sub").textContent = signUp
+    ? "Create an account to start planning your trips"
+    : "Sign in to continue to your travel planner";
+  $("email-submit").textContent = signUp ? "Create account" : "Sign in";
+  $("password").autocomplete = signUp ? "new-password" : "current-password";
+  $("sign-in-extras").hidden = signUp;
+  $("sign-up-hint").hidden = !signUp;
+  $("switch-text").textContent = signUp ? "Already have an account?" : "Don't have an account?";
+  $("switch-mode").textContent = signUp ? "Sign in" : "Create account";
+  showAuthMessage("");
+}
+$("tab-sign-in").addEventListener("click", () => setAuthMode("sign-in"));
+$("tab-sign-up").addEventListener("click", () => setAuthMode("sign-up"));
+$("switch-mode").addEventListener("click", () =>
+  setAuthMode(authMode === "sign-in" ? "sign-up" : "sign-in")
+);
+
+$("toggle-password").addEventListener("click", () => {
+  const show = $("password").type === "password";
+  $("password").type = show ? "text" : "password";
+  $("toggle-password").setAttribute("aria-pressed", String(show));
+  $("toggle-password").setAttribute("aria-label", show ? "Hide password" : "Show password");
+});
+
+$("forgot-password").addEventListener("click", async () => {
+  const email = $("email").value.trim();
+  if (!email) {
+    showAuthMessage("Enter your email address above, then click “Forgot password?”.");
+    $("email").focus();
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    showAuthMessage(`If an account exists for ${email}, a password reset link has been sent.`, true);
+  } catch (err) {
+    showAuthMessage(authErrorText(err));
+  }
+});
+
 $("google-sign-in").addEventListener("click", async () => {
-  $("auth-error").textContent = "";
+  showAuthMessage("");
+  $("google-sign-in").disabled = true;
   try {
     await signInWithPopup(auth, new GoogleAuthProvider());
   } catch (e) {
-    $("auth-error").textContent = e.message;
+    showAuthMessage(authErrorText(e));
+  } finally {
+    $("google-sign-in").disabled = false;
   }
 });
 
 $("email-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  $("auth-error").textContent = "";
-  const action = e.submitter?.dataset.action;
+  showAuthMessage("");
   const email = $("email").value;
   const password = $("password").value;
+  $("email-submit").disabled = true;
   try {
-    if (action === "sign-up") await createUserWithEmailAndPassword(auth, email, password);
+    if (authMode === "sign-up") await createUserWithEmailAndPassword(auth, email, password);
     else await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
-    $("auth-error").textContent = err.message;
+    showAuthMessage(authErrorText(err));
+  } finally {
+    $("email-submit").disabled = false;
   }
 });
 
