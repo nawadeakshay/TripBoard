@@ -351,7 +351,8 @@ textarea { width: 100%; max-width: 100%; box-sizing: border-box; }
   display: flex; align-items: center; justify-content: center; gap: 54.5px; padding: 20.5px 27px;
   margin: 17px clamp(0px, 2vw, 27px) 0;
 }
-.trips-empty img { width: 217px; height: auto; }
+/* multiply blends the image's off-white background into the white panel */
+.trips-empty img { width: 217px; height: auto; mix-blend-mode: multiply; }
 .trips-empty h3 { margin: 0 0 7px; font-size: 18.5px; }
 .trips-empty p { margin: 0 0 15.5px; color: var(--muted); }
 .empty-btn { display: inline-flex; align-items: center; gap: 8.5px; height: 39px; padding: 0 18.5px; }

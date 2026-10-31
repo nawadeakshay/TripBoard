@@ -493,6 +493,8 @@ function renderTrip(id, trip) {
       await deleteDoc(ref);
       trips = trips.filter((t) => t.id !== id);
       renderTrips();
+      $("trips-status").textContent = `Trip to ${country.name} deleted.`;
+      $("trips-status").className = "search-status";
     } catch (err) {
       deleteBtn.disabled = false;
       status.textContent = err.message;
