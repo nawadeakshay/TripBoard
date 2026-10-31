@@ -484,44 +484,7 @@ function renderTrip(id, trip) {
   const deleteBtn = el("button", { type: "button", className: "btn-danger" }, icon("trash"), "Delete");
   const actions = el("div", { className: "trip-actions" }, editBtn, deleteBtn);
 
-  editBtn.addEventListener("click", () => {
-    const input = el("textarea", { rows: 3, maxLength: 500, value: trip.note || "", placeholder: "Add a short note" });
-    const counter = el("small", { className: "counter", textContent: `${input.value.length}/500` });
-    input.addEventListener("input", () => { counter.textContent = `${input.value.length}/500`; });
-    const save = el("button", { type: "button", className: "btn-primary" }, "Save note");
-    const cancel = el("button", { type: "button", className: "btn-outline" }, "Cancel");
-    const editor = el("div", { className: "trip-editor" },
-      el("div", { className: "note-wrap" }, input, counter),
-      el("div", { className: "trip-actions" }, save, cancel),
-    );
-    noteView.replaceWith(editor);
-    actions.hidden = true;
-    status.textContent = "";
-    input.focus();
-
-    cancel.addEventListener("click", () => {
-      editor.replaceWith(noteView);
-      actions.hidden = false;
-    });
-    save.addEventListener("click", async () => {
-      save.disabled = true;
-      try {
-        const newNote = input.value.trim();
-        await updateDoc(ref, { note: newNote, updatedAt: serverTimestamp() });
-        trip.note = newNote;
-        noteView.textContent = newNote || "No note yet. Click Edit to add one.";
-        noteView.classList.toggle("empty", !newNote);
-        editor.replaceWith(noteView);
-        actions.hidden = false;
-        status.textContent = "Note updated ✓";
-        status.className = "trip-status ok";
-      } catch (err) {
-        save.disabled = false;
-        status.textContent = err.message;
-        status.className = "trip-status error";
-      }
-    });
-  });
+  editBtn.addEventListener("click", () => openEditDialog(id, trip));
 
   deleteBtn.addEventListener("click", async () => {
     if (!confirm(`Delete your trip to ${country.name}?`)) return;
@@ -551,3 +514,80 @@ function renderTrip(id, trip) {
     ),
   );
 }
+
+// ---------- Edit Trip dialog (updates month + note on the existing document) ----------
+let editingId = null;
+
+function updateEditCounter() {
+  $("edit-counter").textContent = `${$("edit-note").value.length}/500`;
+}
+$("edit-note").addEventListener("input", updateEditCounter);
+
+function openEditDialog(id, trip) {
+  editingId = id;
+  const country = trip.country;
+
+  const photoSrc = COUNTRY_PHOTOS[country.code];
+  $("edit-photo").className = `edit-photo trip-photo${photoSrc ? "" : " flag-fallback"}`;
+  $("edit-photo").style.setProperty("--flag", `url("${country.flagUrl}")`);
+  $("edit-photo").replaceChildren(tripPhoto(country));
+  $("edit-flag").replaceChildren(el("img", { src: country.flagUrl, alt: country.flagAlt }));
+  $("edit-country-name").textContent = country.name;
+  $("edit-capital").replaceChildren(icon("pin"), country.capital);
+  $("edit-current-note").textContent = trip.note || "";
+  $("edit-stats").replaceChildren(
+    fact("region", "Region", country.region),
+    fact("population", "Population", country.population.toLocaleString()),
+    fact("currency", "Currency", country.currency),
+  );
+
+  // Upcoming months, plus the saved month if it's already in the past.
+  const options = monthOptions();
+  if (trip.month && !options.some((o) => o.value === trip.month)) {
+    options.unshift(el("option", { value: trip.month, textContent: formatMonth(trip.month) }));
+  }
+  $("edit-month").replaceChildren(...options);
+  $("edit-month").value = trip.month || options[0].value;
+  $("edit-note").value = trip.note || "";
+  updateEditCounter();
+  $("edit-status").textContent = "";
+  $("edit-save").disabled = false;
+
+  $("edit-dialog").showModal();
+  $("edit-note").focus();
+}
+
+const closeEditDialog = () => $("edit-dialog").close();
+$("edit-close").addEventListener("click", closeEditDialog);
+$("edit-cancel").addEventListener("click", closeEditDialog);
+// Clicking the dimmed backdrop (outside the form) closes the dialog.
+$("edit-dialog").addEventListener("click", (e) => {
+  if (e.target === $("edit-dialog")) closeEditDialog();
+});
+
+$("edit-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const entry = trips.find((t) => t.id === editingId);
+  if (!entry) return;
+  const month = $("edit-month").value;
+  const note = $("edit-note").value.trim();
+  $("edit-save").disabled = true;
+  $("edit-status").textContent = "Saving…";
+  $("edit-status").className = "trip-status";
+  try {
+    await updateDoc(doc(db, "users", currentUser.uid, "trips", editingId), {
+      month,
+      note,
+      updatedAt: serverTimestamp(),
+    });
+    Object.assign(entry.data, { month, note });
+    closeEditDialog();
+    renderTrips(); // month may move the trip between Upcoming / Past or change its sort position
+    $("trips-status").textContent = `Trip to ${entry.data.country.name} updated ✓`;
+    $("trips-status").className = "search-status ok";
+  } catch (err) {
+    $("edit-save").disabled = false;
+    $("edit-status").textContent = err.message;
+    $("edit-status").className = "trip-status error";
+  }
+});

@@ -199,6 +199,53 @@
     </section>
   </main>
 
+  <!-- Edit Trip dialog (filled by app.js when a trip's Edit button is clicked) -->
+  <dialog id="edit-dialog" class="edit-dialog" aria-labelledby="edit-title">
+    <form id="edit-form" class="edit-layout">
+      <button type="button" class="icon-btn edit-close" id="edit-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+
+      <div class="edit-preview">
+        <div class="edit-photo" id="edit-photo"></div>
+        <div class="edit-country">
+          <span class="flag-box" id="edit-flag"></span>
+          <div>
+            <h3 id="edit-country-name"></h3>
+            <p class="trip-place" id="edit-capital"></p>
+          </div>
+        </div>
+        <p class="edit-current-note" id="edit-current-note"></p>
+        <dl class="edit-stats" id="edit-stats"></dl>
+      </div>
+
+      <div class="edit-fields">
+        <h2 id="edit-title">Edit Trip</h2>
+        <p class="edit-sub">Update your travel plans and notes.</p>
+        <label class="plan-field">
+          <span>Planned Travel Month</span>
+          <div class="select-wrap">
+            <span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/></svg></span>
+            <select id="edit-month" required></select>
+            <span class="ico chev"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
+          </div>
+        </label>
+        <label class="plan-field">
+          <span>Your Note</span>
+          <div class="note-wrap">
+            <textarea id="edit-note" rows="5" maxlength="500" placeholder="Add a short note"></textarea>
+            <small class="counter" id="edit-counter">0/500</small>
+          </div>
+        </label>
+        <p class="trip-status" id="edit-status" role="alert"></p>
+        <div class="edit-actions">
+          <button type="button" class="btn-outline" id="edit-cancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="edit-save">Save Changes</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>
