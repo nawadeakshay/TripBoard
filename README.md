@@ -261,17 +261,6 @@ npx firebase-tools deploy --only hosting,firestore:rules
 
 ---
 
-## 🤖 AI usage
-
-TripBoard was built with **Claude Code** (Anthropic) as an AI coding assistant.
-
-- **AI's role:** generating and refining code, building the UI from design storyboards, and helping with testing and deployment.
-- **My role:** setting the requirements and the extra features, providing the design storyboards, reviewing each change, and approving every deployment.
-- **Verification:**
-  - Each change was tested against the live APIs. That's how the REST Countries v3.1 deprecation was found, and how several UI bugs were caught and fixed.
-  - The full flow was tested on the live site: sign-up and sign-in, search, weather, save, edit, delete and profile. Two accounts were used to confirm that each user only sees their own trips.
-- Each feature and fix is a **separate commit**, so the development history is easy to follow.
-
 ---
 
 <div align="center">
