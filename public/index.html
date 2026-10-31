@@ -32,7 +32,12 @@
       </button>
       <div class="user-dropdown" id="user-dropdown" hidden>
         <div class="user-email" id="user-email"></div>
-        <button type="button" id="sign-out">Sign out</button>
+        <button type="button" id="open-profile">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 4-6 8-6s7.2 2 8 6"/></svg>Profile
+        </button>
+        <button type="button" id="sign-out">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg>Sign out
+        </button>
       </div>
     </div>
   </header>
@@ -198,6 +203,54 @@
       </div>
     </section>
   </main>
+
+  <!-- Profile dialog (opened from the user menu; reads the Firebase Auth user and the trips list) -->
+  <dialog id="profile-dialog" class="edit-dialog profile-dialog" aria-labelledby="profile-title">
+    <form id="profile-form" class="profile-layout">
+      <button type="button" class="icon-btn edit-close" id="profile-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+
+      <div class="profile-head">
+        <span class="avatar avatar-lg" id="profile-avatar"></span>
+        <div>
+          <h2 id="profile-title">Your Profile</h2>
+          <p class="edit-sub" id="profile-email"></p>
+        </div>
+      </div>
+
+      <div class="profile-stats">
+        <div><strong id="profile-total">–</strong><span>Trips saved</span></div>
+        <div><strong id="profile-upcoming">–</strong><span>Upcoming</span></div>
+        <div><strong id="profile-past">–</strong><span>Past</span></div>
+      </div>
+
+      <label class="plan-field">
+        <span>Display name</span>
+        <div class="field">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4 4-6 8-6s7.2 2 8 6"/></svg>
+          <input id="profile-name" maxlength="50" placeholder="Your name" autocomplete="name">
+        </div>
+      </label>
+
+      <dl class="profile-meta">
+        <div><dt>Sign-in method</dt><dd id="profile-provider"></dd></div>
+        <div><dt>Member since</dt><dd id="profile-since"></dd></div>
+      </dl>
+
+      <p class="profile-reset" id="profile-reset-row">
+        Want to change your password?
+        <button type="button" class="link strong" id="profile-reset">Send a reset email</button>
+      </p>
+
+      <p class="trip-status" id="profile-status" role="status"></p>
+
+      <div class="edit-actions">
+        <button type="button" class="btn-outline" id="profile-signout">Sign out</button>
+        <button type="submit" class="btn-primary" id="profile-save">Save Changes</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- Edit Trip dialog (filled by app.js when a trip's Edit button is clicked) -->
   <dialog id="edit-dialog" class="edit-dialog" aria-labelledby="edit-title">

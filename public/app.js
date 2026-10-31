@@ -3,6 +3,7 @@ import {
   getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup,
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut,
   setPersistence, browserLocalPersistence, browserSessionPersistence, sendPasswordResetEmail,
+  updateProfile,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc,
@@ -61,15 +62,23 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ---------- Auth ----------
+// Display name, falling back to the part of the email before "@".
+const userLabel = (user) => (user ? user.displayName || (user.email || "").split("@")[0] : "");
+
+function renderUserHeader(user) {
+  const name = userLabel(user);
+  $("user-name").textContent = name;
+  $("user-avatar").textContent = name.charAt(0).toUpperCase();
+  $("user-email").textContent = user ? user.email || "" : "";
+}
+
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
   document.body.classList.toggle("signed-out", !user);
   $("nav").hidden = !user;
-  const name = user ? user.displayName || (user.email || "").split("@")[0] : "";
-  $("user-name").textContent = name;
-  $("user-avatar").textContent = name.charAt(0).toUpperCase();
-  $("user-email").textContent = user ? user.email || "" : "";
+  renderUserHeader(user);
   setUserMenuOpen(false);
+  if ($("profile-dialog").open) $("profile-dialog").close();
   showView(user ? "search" : "auth");
 });
 
@@ -173,6 +182,84 @@ $("email-form").addEventListener("submit", async (e) => {
 });
 
 $("sign-out").addEventListener("click", () => signOut(auth));
+
+// ---------- Profile dialog (Firebase Auth profile + trip counts) ----------
+const PROVIDER_NAMES = { "google.com": "Google", password: "Email & password" };
+
+function setProfileStatus(text, cls = "") {
+  $("profile-status").textContent = text;
+  $("profile-status").className = `trip-status ${cls}`;
+}
+
+async function loadProfileStats() {
+  for (const id of ["profile-total", "profile-upcoming", "profile-past"]) $(id).textContent = "…";
+  try {
+    const snap = await getDocs(collection(db, "users", currentUser.uid, "trips"));
+    const now = currentMonth();
+    const months = snap.docs.map((d) => d.data().month || "");
+    $("profile-total").textContent = months.length;
+    $("profile-upcoming").textContent = months.filter((m) => m >= now).length;
+    $("profile-past").textContent = months.filter((m) => m && m < now).length;
+  } catch (err) {
+    for (const id of ["profile-total", "profile-upcoming", "profile-past"]) $(id).textContent = "–";
+    setProfileStatus(err.message, "error");
+  }
+}
+
+function openProfile() {
+  setUserMenuOpen(false);
+  const user = currentUser;
+  const name = userLabel(user);
+  $("profile-avatar").textContent = name.charAt(0).toUpperCase();
+  $("profile-email").textContent = user.email || "";
+  $("profile-name").value = user.displayName || "";
+  $("profile-name").placeholder = name || "Your name";
+  const providers = user.providerData.map((p) => PROVIDER_NAMES[p.providerId] || p.providerId);
+  $("profile-provider").textContent = providers.join(", ") || "—";
+  $("profile-since").textContent = user.metadata.creationTime
+    ? new Date(user.metadata.creationTime).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
+    : "—";
+  // Password reset only applies to email/password accounts.
+  $("profile-reset-row").hidden = !user.providerData.some((p) => p.providerId === "password");
+  setProfileStatus("");
+  $("profile-save").disabled = false;
+  $("profile-dialog").showModal();
+  loadProfileStats();
+}
+
+$("open-profile").addEventListener("click", openProfile);
+$("profile-close").addEventListener("click", () => $("profile-dialog").close());
+$("profile-dialog").addEventListener("click", (e) => {
+  if (e.target === $("profile-dialog")) $("profile-dialog").close();
+});
+$("profile-signout").addEventListener("click", () => signOut(auth));
+
+$("profile-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const displayName = $("profile-name").value.trim();
+  $("profile-save").disabled = true;
+  setProfileStatus("Saving…");
+  try {
+    // Stored on the Firebase Auth user, not in Firestore. Empty clears it (falls back to email).
+    await updateProfile(currentUser, { displayName: displayName || null });
+    renderUserHeader(currentUser);
+    $("profile-avatar").textContent = userLabel(currentUser).charAt(0).toUpperCase();
+    setProfileStatus("Profile updated ✓", "ok");
+  } catch (err) {
+    setProfileStatus(authErrorText(err), "error");
+  } finally {
+    $("profile-save").disabled = false;
+  }
+});
+
+$("profile-reset").addEventListener("click", async () => {
+  try {
+    await sendPasswordResetEmail(auth, currentUser.email);
+    setProfileStatus(`Password reset link sent to ${currentUser.email}.`, "ok");
+  } catch (err) {
+    setProfileStatus(authErrorText(err), "error");
+  }
+});
 
 // ---------- Search (API chain: REST Countries -> Open-Meteo) ----------
 function setSearchStatus(text, cls = "") {
