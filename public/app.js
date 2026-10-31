@@ -218,6 +218,8 @@ const ICONS = {
   calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/>',
   bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
+  pencil: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
 };
 function icon(name, className = "") {
   const span = el("span", { className: `ico ${className}` });
@@ -226,7 +228,11 @@ function icon(name, className = "") {
 }
 
 // Country photos we have assets for; other countries get a large-flag panel instead.
-const COUNTRY_PHOTOS = { JP: "images/country-japan.webp" };
+const COUNTRY_PHOTOS = {
+  JP: "images/country-japan.webp",
+  FR: "images/country-france.webp",
+  GR: "images/country-greece.webp",
+};
 
 // Open-Meteo returns times in GMT, e.g. "2026-10-31T09:45".
 function formatWeatherTime(time) {
@@ -381,36 +387,117 @@ function renderResult({ country, weather, weatherError }) {
 }
 
 // ---------- My Trips (Firestore read / update / delete) ----------
+// Trips are loaded once per visit; filtering and sorting happen in the browser.
+let trips = [];
+let tripFilter = "all";
+
+const currentMonth = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+
+function formatMonthShort(value) {
+  if (!value) return "No date";
+  const [y, m] = value.split("-").map(Number);
+  return new Date(y, m - 1).toLocaleString(undefined, { month: "short", year: "numeric" });
+}
+
+const EMPTY_TEXT = {
+  all: ["No trips saved yet", "Search for a country, explore details and save it to your travel list."],
+  upcoming: ["No upcoming trips", "Trips planned for this month or later will show up here."],
+  past: ["No past trips", "Trips whose planned month has passed will show up here."],
+};
+
+function visibleTrips() {
+  const now = currentMonth();
+  const list = trips.filter(({ data }) =>
+    tripFilter === "all" ? true
+      : tripFilter === "upcoming" ? (data.month || "") >= now
+      : Boolean(data.month) && data.month < now
+  );
+  // Firestore returns newest first (orderBy createdAt desc).
+  const sort = $("trips-sort").value;
+  if (sort === "oldest") list.reverse();
+  if (sort === "travel") list.sort((a, b) => (a.data.month || "9999").localeCompare(b.data.month || "9999"));
+  return list;
+}
+
+function renderTrips() {
+  const list = visibleTrips();
+  $("trips-list").replaceChildren(...list.map(({ id, data }) => renderTrip(id, data)));
+  $("trips-empty").hidden = list.length > 0;
+  [$("trips-empty-title").textContent, $("trips-empty-text").textContent] = EMPTY_TEXT[tripFilter];
+}
+
+document.querySelectorAll("[data-filter]").forEach((b) =>
+  b.addEventListener("click", () => {
+    tripFilter = b.dataset.filter;
+    document.querySelectorAll("[data-filter]").forEach((x) =>
+      x.setAttribute("aria-selected", String(x === b))
+    );
+    renderTrips();
+  })
+);
+$("trips-sort").addEventListener("change", renderTrips);
+
 async function loadTrips() {
   if (!currentUser) return;
-  $("trips-status").textContent = "Loading…";
+  $("trips-status").textContent = "Loading your trips…";
+  $("trips-status").className = "search-status";
   $("trips-list").replaceChildren();
+  $("trips-empty").hidden = true;
   try {
     const q = query(collection(db, "users", currentUser.uid, "trips"), orderBy("createdAt", "desc"));
     const snap = await getDocs(q);
-    $("trips-status").textContent = snap.empty ? "No trips saved yet. Search a country to add one." : "";
-    snap.forEach((d) => $("trips-list").append(renderTrip(d.id, d.data())));
+    trips = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+    $("trips-status").textContent = "";
+    renderTrips();
   } catch (err) {
     $("trips-status").textContent = err.message;
+    $("trips-status").className = "search-status error";
   }
+}
+
+function tripPhoto(country) {
+  const src = COUNTRY_PHOTOS[country.code];
+  if (src) return el("img", { src, alt: `Scenery in ${country.name}` });
+  return el("img", { src: country.flagUrl, alt: country.flagAlt });
 }
 
 function renderTrip(id, trip) {
   const ref = doc(db, "users", currentUser.uid, "trips", id);
-  const noteView = el("p", { textContent: trip.note || "(no note)" });
-  const status = el("span");
+  const country = trip.country;
 
-  const editBtn = el("button", { textContent: "Edit note" });
-  const deleteBtn = el("button", { textContent: "Delete" });
-  const actions = el("div", { className: "row" }, editBtn, deleteBtn, status);
+  const photo = el("div", { className: `trip-photo${COUNTRY_PHOTOS[country.code] ? "" : " flag-fallback"}` },
+    tripPhoto(country),
+    el("span", { className: "month-chip" }, icon("calendar"), formatMonthShort(trip.month)),
+  );
+  if (!COUNTRY_PHOTOS[country.code]) photo.style.setProperty("--flag", `url("${country.flagUrl}")`);
+
+  const noteView = el("p", {
+    className: `trip-note${trip.note ? "" : " empty"}`,
+    textContent: trip.note || "No note yet. Click Edit to add one.",
+  });
+  const status = el("p", { className: "trip-status" });
+
+  const editBtn = el("button", { type: "button", className: "btn-outline" }, icon("pencil"), "Edit");
+  const deleteBtn = el("button", { type: "button", className: "btn-danger" }, icon("trash"), "Delete");
+  const actions = el("div", { className: "trip-actions" }, editBtn, deleteBtn);
 
   editBtn.addEventListener("click", () => {
-    const input = el("textarea", { rows: 3, maxLength: 500, value: trip.note || "" });
-    const save = el("button", { textContent: "Save" });
-    const cancel = el("button", { textContent: "Cancel" });
-    const editor = el("div", {}, input, el("div", { className: "row" }, save, cancel));
+    const input = el("textarea", { rows: 3, maxLength: 500, value: trip.note || "", placeholder: "Add a short note" });
+    const counter = el("small", { className: "counter", textContent: `${input.value.length}/500` });
+    input.addEventListener("input", () => { counter.textContent = `${input.value.length}/500`; });
+    const save = el("button", { type: "button", className: "btn-primary" }, "Save note");
+    const cancel = el("button", { type: "button", className: "btn-outline" }, "Cancel");
+    const editor = el("div", { className: "trip-editor" },
+      el("div", { className: "note-wrap" }, input, counter),
+      el("div", { className: "trip-actions" }, save, cancel),
+    );
     noteView.replaceWith(editor);
     actions.hidden = true;
+    status.textContent = "";
+    input.focus();
 
     cancel.addEventListener("click", () => {
       editor.replaceWith(noteView);
@@ -422,40 +509,45 @@ function renderTrip(id, trip) {
         const newNote = input.value.trim();
         await updateDoc(ref, { note: newNote, updatedAt: serverTimestamp() });
         trip.note = newNote;
-        noteView.textContent = newNote || "(no note)";
+        noteView.textContent = newNote || "No note yet. Click Edit to add one.";
+        noteView.classList.toggle("empty", !newNote);
         editor.replaceWith(noteView);
         actions.hidden = false;
         status.textContent = "Note updated ✓";
-        status.className = "ok";
+        status.className = "trip-status ok";
       } catch (err) {
         save.disabled = false;
-        alert(err.message);
+        status.textContent = err.message;
+        status.className = "trip-status error";
       }
     });
   });
 
-  const card = el("div", { className: "card" });
   deleteBtn.addEventListener("click", async () => {
-    if (!confirm(`Delete trip to ${trip.country.name}?`)) return;
+    if (!confirm(`Delete your trip to ${country.name}?`)) return;
+    deleteBtn.disabled = true;
     try {
       await deleteDoc(ref);
-      card.remove();
-      if (!$("trips-list").children.length) $("trips-status").textContent = "No trips saved yet.";
+      trips = trips.filter((t) => t.id !== id);
+      renderTrips();
     } catch (err) {
+      deleteBtn.disabled = false;
       status.textContent = err.message;
-      status.className = "error";
+      status.className = "trip-status error";
     }
   });
 
-  const w = trip.weatherAtSave;
-  card.append(
-    el("img", { className: "flag", src: trip.country.flagUrl, alt: trip.country.flagAlt }),
-    el("h3", { textContent: `${trip.country.name} — ${formatMonth(trip.month)}` }),
-    el("p", { className: "muted", textContent:
-      `Capital: ${trip.country.capital} · Region: ${trip.country.region}` +
-      (w ? ` · Weather when saved: ${w.temperature} ${w.tempUnit}` : "") }),
-    noteView,
-    actions,
+  return el("article", { className: "panel trip-card" },
+    photo,
+    el("div", { className: "trip-body" },
+      el("div", { className: "trip-title" },
+        el("span", { className: "trip-flag" }, el("img", { src: country.flagUrl, alt: country.flagAlt })),
+        el("h3", { textContent: country.name }),
+      ),
+      el("div", { className: "trip-place" }, icon("pin"), country.capital),
+      noteView,
+      actions,
+      status,
+    ),
   );
-  return card;
 }
