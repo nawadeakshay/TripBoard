@@ -12,6 +12,7 @@ Plain HTML + vanilla JS (ES modules), no build step. Firebase JS SDK v10 loaded 
 | `public/api.js` | REST Countries + Open-Meteo calls and the chaining logic |
 | `public/app.js` | Firebase Auth, Firestore CRUD, rendering |
 | `public/config.js` | Firebase web config + REST Countries API key |
+| `public/images/` | Design images: sign-in collage, search hero, Japan photo (other countries show their flag) |
 | `firestore.rules` | Security rules: users can only access their own trips |
 | `firebase.json` | Hosting + rules deploy config |
 

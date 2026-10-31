@@ -7,14 +7,34 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="signed-out">
-  <header>
-    <h1>TripBoard</h1>
-    <nav id="nav" hidden>
-      <button data-view="search">Search</button>
-      <button data-view="trips">My Trips</button>
-      <span id="user-email"></span>
-      <button id="sign-out">Sign out</button>
+  <header class="app-header">
+    <div class="app-brand">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="32" fill="#1f5c46"/>
+        <path d="M8 44 L22 24 L28 31 L36 16 L56 44 Z" fill="#fff"/>
+        <path d="M6 46 Q20 40 32 46 T58 46 L58 52 Q32 62 6 52 Z" fill="#fff"/>
+      </svg>
+      <h1>TripBoard</h1>
+    </div>
+    <nav id="nav" class="app-nav" hidden>
+      <button type="button" class="nav-link" data-view="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Search
+      </button>
+      <button type="button" class="nav-link" data-view="trips">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>My Trips
+      </button>
     </nav>
+    <div class="user-menu">
+      <button type="button" class="user-button" id="user-button" aria-haspopup="true" aria-expanded="false">
+        <span class="avatar" id="user-avatar"></span>
+        <span class="user-name" id="user-name"></span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="user-dropdown" id="user-dropdown" hidden>
+        <div class="user-email" id="user-email"></div>
+        <button type="button" id="sign-out">Sign out</button>
+      </div>
+    </div>
   </header>
 
   <main>
@@ -104,13 +124,28 @@
     </section>
 
     <!-- Search screen -->
-    <section id="view-search" hidden>
-      <h2>Search a country</h2>
-      <form id="search-form">
-        <input id="search-input" placeholder="e.g. Japan" required>
-        <button type="submit">Search</button>
+    <section id="view-search" class="search-page" hidden>
+      <div class="search-hero">
+        <div class="search-hero-text">
+          <p class="eyebrow">Explore the world</p>
+          <h2 class="search-title">Discover new places, <br>plan your <span>next adventure.</span></h2>
+          <p class="search-lede">Search for a country to explore details, live weather <br>and save it to your travel list.</p>
+        </div>
+        <img class="search-hero-img" src="images/hero-landscape.webp" alt="" width="1136" height="362">
+      </div>
+
+      <form id="search-form" class="search-bar" role="search">
+        <label class="search-field">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input id="search-input" placeholder="Search a country, e.g. Japan" aria-label="Country name" autocomplete="off" required>
+          <button type="button" class="icon-btn" id="search-clear" aria-label="Clear search" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </label>
+        <button type="submit" class="btn-primary search-btn">Search</button>
       </form>
-      <p id="search-status"></p>
+
+      <p id="search-status" class="search-status" role="status"></p>
       <div id="search-result"></div>
     </section>
 

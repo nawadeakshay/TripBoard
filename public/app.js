@@ -35,18 +35,41 @@ function formatMonth(value) {
 // ---------- Navigation ----------
 function showView(name) {
   for (const v of ["auth", "search", "trips"]) $(`view-${v}`).hidden = v !== name;
+  document.querySelectorAll(".nav-link").forEach((b) =>
+    b.toggleAttribute("aria-current", b.dataset.view === name)
+  );
   if (name === "trips") loadTrips();
 }
 document.querySelectorAll("[data-view]").forEach((b) =>
   b.addEventListener("click", () => showView(b.dataset.view))
 );
 
+// ---------- User menu (avatar + name; dropdown holds Sign out) ----------
+function setUserMenuOpen(open) {
+  $("user-dropdown").hidden = !open;
+  $("user-button").setAttribute("aria-expanded", String(open));
+}
+$("user-button").addEventListener("click", (e) => {
+  e.stopPropagation();
+  setUserMenuOpen($("user-dropdown").hidden);
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".user-menu")) setUserMenuOpen(false);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") setUserMenuOpen(false);
+});
+
 // ---------- Auth ----------
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
   document.body.classList.toggle("signed-out", !user);
   $("nav").hidden = !user;
+  const name = user ? user.displayName || (user.email || "").split("@")[0] : "";
+  $("user-name").textContent = name;
+  $("user-avatar").textContent = name.charAt(0).toUpperCase();
   $("user-email").textContent = user ? user.email || "" : "";
+  setUserMenuOpen(false);
   showView(user ? "search" : "auth");
 });
 
@@ -152,52 +175,180 @@ $("email-form").addEventListener("submit", async (e) => {
 $("sign-out").addEventListener("click", () => signOut(auth));
 
 // ---------- Search (API chain: REST Countries -> Open-Meteo) ----------
+function setSearchStatus(text, cls = "") {
+  $("search-status").textContent = text;
+  $("search-status").className = `search-status ${cls}`;
+}
+
 $("search-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = $("search-input").value.trim();
   if (!name) return;
-  $("search-status").textContent = "Searching…";
-  $("search-status").className = "";
+  setSearchStatus("Searching…");
   $("search-result").replaceChildren();
   try {
     const result = await fetchCountryWithWeather(name);
-    $("search-status").textContent = "";
+    setSearchStatus("");
     $("search-result").append(renderResult(result));
   } catch (err) {
-    $("search-status").textContent = err.message;
-    $("search-status").className = "error";
+    setSearchStatus(err.message, "error");
   }
 });
 
-function renderResult({ country, weather, weatherError }) {
-  const weatherText = weather
-    ? `${weather.temperature} ${weather.tempUnit}, wind ${weather.windSpeed} ${weather.windUnit} (as of ${weather.time} UTC)`
-    : `Unavailable: ${weatherError}`;
+$("search-input").addEventListener("input", () => {
+  $("search-clear").hidden = !$("search-input").value;
+});
+$("search-clear").addEventListener("click", () => {
+  $("search-input").value = "";
+  $("search-clear").hidden = true;
+  $("search-result").replaceChildren();
+  setSearchStatus("");
+  $("search-input").focus();
+});
 
-  const details = el("dl", {},
-    el("dt", { textContent: "Capital" }), el("dd", { textContent: country.capital }),
-    el("dt", { textContent: "Population" }), el("dd", { textContent: country.population.toLocaleString() }),
-    el("dt", { textContent: "Region" }), el("dd", { textContent: country.region }),
-    el("dt", { textContent: "Currency" }), el("dd", { textContent: country.currency }),
-    el("dt", { textContent: "Weather in capital" }), el("dd", { textContent: weatherText }),
+// Static icon markup (constants only, never user data), wrapped in a span.
+const ICONS = {
+  capital: '<path d="M3 21h18M4 10h16M12 3l9 5H3zM6 10v8M10 10v8M14 10v8M18 10v8"/>',
+  population: '<circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.6 0 4.4 1.5 5 4"/>',
+  region: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  currency: '<circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1.2-1.6-2-3-2-1.7 0-3 1-3 2.3 0 3 6 1.7 6 4.6 0 1.3-1.3 2.3-3 2.3-1.4 0-2.6-.8-3-2M12 5.5v2M12 16.7v1.8"/>',
+  thermometer: '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M12 9v7"/>',
+  wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h7"/>',
+  pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/>',
+  bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
+  chevron: '<path d="m6 9 6 6 6-6"/>',
+};
+function icon(name, className = "") {
+  const span = el("span", { className: `ico ${className}` });
+  span.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+  return span;
+}
+
+// Country photos we have assets for; other countries get a large-flag panel instead.
+const COUNTRY_PHOTOS = { JP: "images/country-japan.webp" };
+
+// Open-Meteo returns times in GMT, e.g. "2026-10-31T09:45".
+function formatWeatherTime(time) {
+  const d = new Date(`${time}Z`);
+  return Number.isNaN(d.getTime()) ? time : d.toLocaleString(undefined, {
+    day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+  });
+}
+
+function formatCoords(lat, lng) {
+  if (lat == null || lng == null) return "—";
+  return `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? "N" : "S"}\n${Math.abs(lng).toFixed(2)}°${lng >= 0 ? "E" : "W"}`;
+}
+
+// Next 24 months as "YYYY-MM" values (same format the old month input saved).
+function monthOptions() {
+  const now = new Date();
+  return Array.from({ length: 24 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return el("option", { value, textContent: formatMonth(value) });
+  });
+}
+
+function fact(iconName, label, value) {
+  return el("div", { className: "fact" },
+    icon(iconName),
+    el("div", {}, el("dt", { textContent: label }), el("dd", { textContent: value })),
+  );
+}
+
+function stat(iconName, label, value) {
+  return el("div", { className: "stat" },
+    icon(iconName),
+    el("div", {}, el("span", { className: "stat-label", textContent: label }), el("strong", { textContent: value })),
+  );
+}
+
+function renderResult({ country, weather, weatherError }) {
+  // --- Country panel ---
+  const photoSrc = COUNTRY_PHOTOS[country.code];
+  const photo = photoSrc
+    ? el("div", { className: "country-photo" }, el("img", { src: photoSrc, alt: `Scenery in ${country.name}` }))
+    : el("div", { className: "country-photo flag-fallback" }, el("img", { src: country.flagUrl, alt: country.flagAlt }));
+  if (!photoSrc) photo.style.setProperty("--flag", `url("${country.flagUrl}")`);
+
+  const countryPanel = el("article", { className: "panel country-panel" },
+    photo,
+    el("div", { className: "country-info" },
+      el("div", { className: "country-head" },
+        el("div", { className: "flag-box" }, el("img", { src: country.flagUrl, alt: country.flagAlt })),
+        el("div", {},
+          el("h3", { textContent: country.name }),
+          country.officialName !== country.name ? el("p", { className: "official", textContent: country.officialName }) : null,
+        ),
+      ),
+      el("dl", { className: "facts" },
+        fact("capital", "Capital", country.capital),
+        fact("population", "Population", country.population.toLocaleString()),
+        fact("region", "Region", country.region),
+        fact("currency", "Currency", country.currency),
+      ),
+    ),
   );
 
-  const month = el("input", { type: "month", required: true });
-  const note = el("textarea", { rows: 3, maxLength: 500, placeholder: "Short note (optional)" });
-  const status = el("span");
-  const saveBtn = el("button", { type: "submit", textContent: "Save Trip" });
+  // --- Weather panel (Open-Meteo, called with the capital's coordinates) ---
+  const capitalName = country.capital.split(",")[0];
+  const weatherPanel = el("article", { className: "panel weather-panel" }, el("div", { className: "weather-inner" },
+    el("div", { className: "weather-head" },
+      el("h4", {}, "Current Weather ", el("span", { textContent: `(${capitalName})` })),
+      weather ? el("small", { textContent: `Updated: ${formatWeatherTime(weather.time)}` }) : null,
+    ),
+    weather
+      ? el("div", { className: "weather-main" },
+          icon("thermometer", "weather-icon"),
+          el("div", {},
+            el("div", { className: "temp", textContent: `${weather.temperature}${weather.tempUnit}` }),
+            el("div", { className: "temp-sub", textContent: `Right now in ${capitalName}` }),
+          ),
+        )
+      : el("p", { className: "weather-error", textContent: `Weather unavailable: ${weatherError}` }),
+    el("div", { className: "weather-stats" },
+      stat("thermometer", "Temperature", weather ? `${weather.temperature}${weather.tempUnit}` : "—"),
+      stat("wind", "Wind Speed", weather ? `${weather.windSpeed} ${weather.windUnit}` : "—"),
+      stat("pin", "Coordinates", formatCoords(country.lat, country.lng)),
+    ),
+  ));
 
-  const form = el("form", { className: "save-form" },
-    el("label", { textContent: "Planned travel month: " }, month),
-    note,
-    el("div", { className: "row" }, saveBtn, status),
+  // --- Plan Your Trip (saves to Firestore) ---
+  const month = el("select", { required: true },
+    el("option", { value: "", textContent: "Select month" }), ...monthOptions());
+  const note = el("textarea", { rows: 2, maxLength: 500, placeholder: "e.g. Visit during winter for snow and cherry blossoms" });
+  const counter = el("small", { className: "counter", textContent: "0/500" });
+  const updateCounter = () => { counter.textContent = `${note.value.length}/500`; };
+  note.addEventListener("input", updateCounter);
+  const status = el("span", { className: "plan-status" });
+  const saveBtn = el("button", { type: "submit", className: "btn-primary save-btn" }, icon("bookmark"), "Save Trip");
+
+  const form = el("form", { className: "panel plan-panel" },
+    el("div", { className: "plan-intro" },
+      icon("calendar", "plan-icon"),
+      el("div", {},
+        el("h4", { textContent: "Plan Your Trip" }),
+        el("p", { textContent: "Save this destination to your travel list and plan it for later." }),
+      ),
+    ),
+    el("label", { className: "plan-field" },
+      el("span", { textContent: "Planned Travel Month" }),
+      el("div", { className: "select-wrap" }, icon("calendar"), month, icon("chevron", "chev")),
+    ),
+    el("label", { className: "plan-field plan-note" },
+      el("span", { textContent: "Your Note (optional)" }),
+      el("div", { className: "note-wrap" }, note, counter),
+    ),
+    el("div", { className: "plan-action" }, saveBtn, status),
   );
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     saveBtn.disabled = true;
     status.textContent = "Saving…";
-    status.className = "";
+    status.className = "plan-status";
     try {
       await addDoc(collection(db, "users", currentUser.uid, "trips"), {
         country,
@@ -207,24 +358,24 @@ function renderResult({ country, weather, weatherError }) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      status.textContent = "Saved to My Trips ✓";
-      status.className = "ok";
+      const viewTrips = el("button", { type: "button", className: "link strong", textContent: "View My Trips" });
+      viewTrips.addEventListener("click", () => showView("trips"));
+      status.replaceChildren("Saved to My Trips ✓ ", viewTrips);
+      status.className = "plan-status ok";
       form.reset();
+      updateCounter();
     } catch (err) {
       status.textContent = err.message;
-      status.className = "error";
+      status.className = "plan-status error";
     } finally {
       saveBtn.disabled = false;
     }
   });
 
-  return el("div", { className: "card" },
+  return el("div", { className: "result" },
     country.isDemo ? el("p", { className: "error", textContent:
       "Using the REST Countries demo key, which always returns a sample country. Set REST_COUNTRIES_API_KEY in config.js." }) : null,
-    el("img", { className: "flag", src: country.flagUrl, alt: country.flagAlt }),
-    el("h3", { textContent: country.name }),
-    el("p", { className: "muted", textContent: country.officialName }),
-    details,
+    el("div", { className: "result-grid" }, countryPanel, weatherPanel),
     form,
   );
 }
