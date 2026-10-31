@@ -1,0 +1,6 @@
+# Firebase deploy cache
+.firebase/
+*.log
+# Local preview config
+.claude/
+node_modules/

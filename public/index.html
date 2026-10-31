@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TripBoard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>TripBoard</h1>
+    <nav id="nav" hidden>
+      <button data-view="search">Search</button>
+      <button data-view="trips">My Trips</button>
+      <span id="user-email"></span>
+      <button id="sign-out">Sign out</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Sign-in screen -->
+    <section id="view-auth">
+      <h2>Sign in</h2>
+      <button id="google-sign-in">Sign in with Google</button>
+      <p>or use email and password:</p>
+      <form id="email-form">
+        <input type="email" id="email" placeholder="Email" required>
+        <input type="password" id="password" placeholder="Password (min 6 chars)" minlength="6" required>
+        <button type="submit" data-action="sign-in">Sign in</button>
+        <button type="submit" data-action="sign-up">Create account</button>
+      </form>
+      <p id="auth-error" class="error"></p>
+    </section>
+
+    <!-- Search screen -->
+    <section id="view-search" hidden>
+      <h2>Search a country</h2>
+      <form id="search-form">
+        <input id="search-input" placeholder="e.g. Japan" required>
+        <button type="submit">Search</button>
+      </form>
+      <p id="search-status"></p>
+      <div id="search-result"></div>
+    </section>
+
+    <!-- My Trips screen -->
+    <section id="view-trips" hidden>
+      <h2>My Trips</h2>
+      <p id="trips-status"></p>
+      <div id="trips-list"></div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
